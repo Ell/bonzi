@@ -190,13 +190,10 @@ impl Acs {
     pub fn new(data: Vec<u8>) -> Result<Self, AcsError> {
         let mut reader = AcsReader::new(&data);
 
-        // Read header
         let header = reader.read_header()?;
 
-        // Read character info
         let raw_character_info = reader.read_character_info(header.character_info.offset)?;
 
-        // Convert to high-level CharacterInfo
         let (name, description) = if let Some(info) = raw_character_info.localized_info.first() {
             (info.name.clone(), info.description.clone())
         } else {
@@ -219,7 +216,6 @@ impl Acs {
             guid: raw_character_info.guid,
         };
 
-        // Read animation list (just names and offsets)
         let raw_animations = reader.read_animation_list(&header.animation_info)?;
         let animation_list: Vec<AnimationCacheEntry> = raw_animations
             .into_iter()
@@ -230,10 +226,8 @@ impl Acs {
             })
             .collect();
 
-        // Read image list
         let image_list = reader.read_image_list(&header.image_info)?;
 
-        // Read audio list
         let audio_list = reader.read_audio_list(&header.audio_info)?;
 
         Ok(Self {
@@ -262,14 +256,12 @@ impl Acs {
 
     /// Get animation by name (lazy load).
     pub fn animation(&mut self, name: &str) -> Result<&Animation, AcsError> {
-        // Find the animation entry
         let idx = self
             .animation_list
             .iter()
             .position(|e| e.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| AcsError::AnimationNotFound(name.to_string()))?;
 
-        // Check if already cached
         if self.animation_list[idx].cached.is_some() {
             return Ok(self.animation_list[idx].cached.as_ref().unwrap());
         }
@@ -371,7 +363,6 @@ impl Acs {
             raw.data.clone()
         };
 
-        // Calculate padded row width
         let row_width = (raw.width as usize + 3) & !3;
         let _expected_size = row_width * raw.height as usize;
 
@@ -427,25 +418,20 @@ impl Acs {
         animation_name: &str,
         frame_index: usize,
     ) -> Result<Image, AcsError> {
-        // We need to find the animation without mutably borrowing
         let anim_idx = self
             .animation_list
             .iter()
             .position(|e| e.name.eq_ignore_ascii_case(animation_name))
             .ok_or_else(|| AcsError::AnimationNotFound(animation_name.to_string()))?;
 
-        // Get frame data
         let frame = if let Some(ref cached) = self.animation_list[anim_idx].cached {
             cached.frames.get(frame_index)
         } else {
-            // Need to load the animation first
             let offset = self.animation_list[anim_idx].offset;
             let mut reader = AcsReader::new(&self.data);
             let raw = reader.read_animation_info(offset)?;
             let animation = self.convert_animation(&raw);
 
-            // Can't cache here since we don't have &mut self
-            // Just get the frame data directly
             if frame_index < animation.frames.len() {
                 return self.composite_frame(&animation.frames[frame_index]);
             } else {
@@ -461,10 +447,8 @@ impl Acs {
         let width = self.character_info.width as u32;
         let height = self.character_info.height as u32;
 
-        // Start with transparent canvas
         let mut canvas = vec![0u8; (width * height * 4) as usize];
 
-        // Composite images in reverse order (first image is on top)
         for frame_img in frame.images.iter().rev() {
             let img = self.image(frame_img.image_index)?;
 

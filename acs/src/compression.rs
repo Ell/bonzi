@@ -69,7 +69,9 @@ pub fn decompress(bytes: Vec<u8>) -> Result<Vec<u8>, DecompressionError> {
                     _ => unreachable!(),
                 };
 
-                let mut num = bits.pop_bits(bitcount).ok_or(DecompressionError::UnexpectedEof)?;
+                let mut num = bits
+                    .pop_bits(bitcount)
+                    .ok_or(DecompressionError::UnexpectedEof)?;
 
                 // End-of-stream marker: 20-bit offset with value 0xFFFFF (before adding 4673)
                 if bitcount == 20 {
@@ -106,7 +108,9 @@ pub fn decompress(bytes: Vec<u8>) -> Result<Vec<u8>, DecompressionError> {
 
                 // Final length = base (2) + (2^sequential_ones - 1) + next N bits
                 bytes_to_read += (1 << sequential_ones) - 1;
-                bytes_to_read += bits.pop_bits(sequential_ones).ok_or(DecompressionError::UnexpectedEof)? as usize;
+                bytes_to_read +=
+                    bits.pop_bits(sequential_ones)
+                        .ok_or(DecompressionError::UnexpectedEof)? as usize;
 
                 // Copy bytes from back-reference position (may overlap with destination)
                 for i in 0..bytes_to_read {
@@ -132,20 +136,17 @@ mod tests {
     #[test]
     fn test_decompress_spec_example() {
         let compressed: Vec<u8> = vec![
-            0x00, 0x40, 0x00, 0x04, 0x10, 0xD0, 0x90, 0x80,
-            0x42, 0xED, 0x98, 0x01, 0xB7, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF,
+            0x00, 0x40, 0x00, 0x04, 0x10, 0xD0, 0x90, 0x80, 0x42, 0xED, 0x98, 0x01, 0xB7, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ];
 
         let expected: Vec<u8> = vec![
-            0x20, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0xA8, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x20, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA8, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
         ];
 
         let result = decompress(compressed).expect("decompression failed");
         assert_eq!(result, expected);
     }
 }
-
