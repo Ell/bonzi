@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ACS Viewer</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #1a1a1a;
+        color: #fff;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      input[type="file"] {
+        padding: 8px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+      }
+      select {
+        padding: 8px 12px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+        font-size: 14px;
+      }
+      select:disabled {
+        opacity: 0.5;
+      }
+      .canvas-container {
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+      }
+      canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        width: 100%;
+        height: auto;
+        max-width: 400px;
+      }
+      .info {
+        margin-top: 20px;
+        padding: 15px;
+        background: #2a2a2a;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      .info p {
+        margin: 5px 0;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ACS Viewer</h1>
+
+    <div class="controls">
+      <input type="file" id="file-input" accept=".acs" />
+      <select id="animation-select" disabled>
+        <option value="">Select animation...</option>
+      </select>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="info" class="info hidden">
+      <p><strong>Name:</strong> <span id="char-name"></span></p>
+      <p><strong>Description:</strong> <span id="char-desc"></span></p>
+      <p><strong>Size:</strong> <span id="char-size"></span></p>
+      <p><strong>Animations:</strong> <span id="char-anims"></span></p>
+      <p><strong>Images:</strong> <span id="char-images"></span></p>
+      <p><strong>Sounds:</strong> <span id="char-sounds"></span></p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
