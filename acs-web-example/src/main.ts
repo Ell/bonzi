@@ -41,17 +41,23 @@ agentSelect.addEventListener('change', async () => {
   const agentPath = agentSelect.value;
   if (!agentPath) return;
 
+  await loadAgentFromPath(agentPath);
+  updateUrl();
+});
+
+async function loadAgentFromPath(agentPath: string) {
   try {
     const response = await fetch(agentPath);
     if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
     const buffer = await response.arrayBuffer();
     fileInput.value = ''; // Clear file input
-    loadAcsFile(new Uint8Array(buffer));
+    agentSelect.value = agentPath;
+    await loadAcsFile(new Uint8Array(buffer));
   } catch (err) {
     console.error('Failed to load agent:', err);
     alert('Failed to load agent: ' + err);
   }
-});
+}
 
 // File input handler
 fileInput.addEventListener('change', async (e) => {
@@ -73,8 +79,57 @@ animationSelect.addEventListener('change', () => {
   const animName = animationSelect.value;
   if (animName && acsFile) {
     playAnimation(animName);
+    updateUrl();
   }
 });
+
+// Update URL with current state
+function updateUrl() {
+  const params = new URLSearchParams();
+  if (agentSelect.value) {
+    // Extract agent name from path (e.g., "agents/Bonzi.acs" -> "Bonzi")
+    const agentName = agentSelect.value.replace('agents/', '').replace('.acs', '');
+    params.set('agent', agentName);
+  }
+  if (animationSelect.value) {
+    params.set('anim', animationSelect.value);
+  }
+  const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+  window.history.replaceState({}, '', newUrl);
+}
+
+// Load from URL on page load
+async function loadFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const agent = params.get('agent');
+  const anim = params.get('anim');
+
+  if (agent) {
+    // Find matching agent path
+    const options = Array.from(agentSelect.options);
+    const match = options.find(opt =>
+      opt.value.toLowerCase().includes(agent.toLowerCase())
+    );
+    if (match && match.value) {
+      await loadAgentFromPath(match.value);
+
+      // If animation specified, select it after agent loads
+      if (anim && acsFile) {
+        // Find the animation (value doesn't have the * suffix)
+        const animOption = Array.from(animationSelect.options).find(
+          opt => opt.value === anim
+        );
+        if (animOption) {
+          animationSelect.value = anim;
+          playAnimation(anim);
+        }
+      }
+    }
+  }
+}
+
+// Initialize from URL
+loadFromUrl();
 
 async function loadAcsFile(data: Uint8Array) {
   // Clean up previous
