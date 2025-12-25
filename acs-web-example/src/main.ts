@@ -22,11 +22,54 @@ let volume = 0.5;
 let audioContext: AudioContext | null = null;
 let gainNode: GainNode | null = null;
 let soundCache: Map<number, AudioBuffer> = new Map();
+let pendingAnimationWithSound: string | null = null; // Animation to replay when audio is enabled
+
+// Audio notice element
+const audioNotice = document.getElementById('audio-notice')!;
 
 // Loop toggle handler
 loopToggle.addEventListener('change', () => {
   shouldLoop = loopToggle.checked;
 });
+
+// Enable audio function (called from HTML onclick)
+async function enableAudio() {
+  if (audioContext && audioContext.state === 'suspended') {
+    await audioContext.resume();
+    console.log('AudioContext resumed after user click');
+    audioNotice.classList.add('hidden');
+
+    // Replay the animation that had sound
+    if (pendingAnimationWithSound && acsFile) {
+      playAnimation(pendingAnimationWithSound);
+      pendingAnimationWithSound = null;
+    }
+  }
+}
+
+// Export to window for HTML onclick
+(window as any).enableAudio = enableAudio;
+
+// Check if an animation has any sounds
+function animationHasSound(animName: string): boolean {
+  if (!acsFile) return false;
+  try {
+    const anim = acsFile.getAnimation(animName);
+    for (let i = 0; i < anim.frameCount; i++) {
+      const frame = anim.getFrame(i);
+      if (frame && frame.soundIndex >= 0) {
+        frame.free();
+        anim.free();
+        return true;
+      }
+      frame?.free();
+    }
+    anim.free();
+  } catch (e) {
+    // Ignore errors
+  }
+  return false;
+}
 
 // Volume slider handler
 volumeSlider.addEventListener('input', () => {
@@ -41,18 +84,25 @@ agentSelect.addEventListener('change', async () => {
   const agentPath = agentSelect.value;
   if (!agentPath) return;
 
+  // User interaction - try to resume audio
+  if (audioContext && audioContext.state === 'suspended') {
+    await audioContext.resume();
+    audioNotice.classList.add('hidden');
+    pendingAnimationWithSound = null;
+  }
+
   await loadAgentFromPath(agentPath);
   updateUrl();
 });
 
-async function loadAgentFromPath(agentPath: string) {
+async function loadAgentFromPath(agentPath: string, initialAnimation?: string) {
   try {
     const response = await fetch(agentPath);
     if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
     const buffer = await response.arrayBuffer();
     fileInput.value = ''; // Clear file input
     agentSelect.value = agentPath;
-    await loadAcsFile(new Uint8Array(buffer));
+    await loadAcsFile(new Uint8Array(buffer), initialAnimation);
   } catch (err) {
     console.error('Failed to load agent:', err);
     alert('Failed to load agent: ' + err);
@@ -75,9 +125,15 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 // Animation select handler
-animationSelect.addEventListener('change', () => {
+animationSelect.addEventListener('change', async () => {
   const animName = animationSelect.value;
   if (animName && acsFile) {
+    // User interaction - try to resume audio
+    if (audioContext && audioContext.state === 'suspended') {
+      await audioContext.resume();
+      audioNotice.classList.add('hidden');
+      pendingAnimationWithSound = null;
+    }
     playAnimation(animName);
     updateUrl();
   }
@@ -111,19 +167,8 @@ async function loadFromUrl() {
       opt.value.toLowerCase().includes(agent.toLowerCase())
     );
     if (match && match.value) {
-      await loadAgentFromPath(match.value);
-
-      // If animation specified, select it after agent loads
-      if (anim && acsFile) {
-        // Find the animation (value doesn't have the * suffix)
-        const animOption = Array.from(animationSelect.options).find(
-          opt => opt.value === anim
-        );
-        if (animOption) {
-          animationSelect.value = anim;
-          playAnimation(anim);
-        }
-      }
+      // Pass the animation to loadAgentFromPath so it plays after sounds are loaded
+      await loadAgentFromPath(match.value, anim || undefined);
     }
   }
 }
@@ -131,7 +176,7 @@ async function loadFromUrl() {
 // Initialize from URL
 loadFromUrl();
 
-async function loadAcsFile(data: Uint8Array) {
+async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
   // Clean up previous
   if (acsFile) {
     stopAnimation();
@@ -188,19 +233,27 @@ async function loadAcsFile(data: Uint8Array) {
   // Preload all sounds
   await preloadSounds();
 
-  // Play first animation if available
-  if (animations.length > 0) {
+  // Determine which animation to play
+  let animToPlay: string | null = null;
+
+  if (initialAnimation && animations.includes(initialAnimation)) {
+    // Use the specified initial animation
+    animToPlay = initialAnimation;
+  } else if (animations.length > 0) {
     // Try to find a good default animation
     const defaultAnims = ['Greet', 'Show', 'RestPose', 'Idle1_1'];
-    let defaultAnim = animations[0];
+    animToPlay = animations[0];
     for (const name of defaultAnims) {
       if (animations.some(a => a.toLowerCase() === name.toLowerCase())) {
-        defaultAnim = animations.find(a => a.toLowerCase() === name.toLowerCase())!;
+        animToPlay = animations.find(a => a.toLowerCase() === name.toLowerCase())!;
         break;
       }
     }
-    animationSelect.value = defaultAnim;
-    playAnimation(defaultAnim);
+  }
+
+  if (animToPlay) {
+    animationSelect.value = animToPlay;
+    playAnimation(animToPlay);
   }
 }
 
@@ -233,7 +286,7 @@ async function preloadSounds() {
   console.log(`Preloaded ${soundCache.size} sounds successfully`);
 }
 
-function playSound(index: number) {
+async function playSound(index: number) {
   console.log(`playSound(${index}) called`);
   if (!audioContext || !gainNode || index < 0) {
     console.log(`  skipping: audioContext=${!!audioContext}, gainNode=${!!gainNode}, index=${index}`);
@@ -249,7 +302,7 @@ function playSound(index: number) {
   // Resume AudioContext if suspended (browser autoplay policy)
   if (audioContext.state === 'suspended') {
     console.log('  resuming suspended AudioContext');
-    audioContext.resume();
+    await audioContext.resume();
   }
 
   console.log(`  playing sound ${index}, duration=${buffer.duration.toFixed(2)}s, volume=${volume}`);
@@ -267,6 +320,13 @@ function playAnimation(name: string) {
   try {
     currentAnimation = acsFile.getAnimation(name);
     currentFrame = 0;
+
+    // Check if audio is blocked and this animation has sound
+    if (audioContext && audioContext.state === 'suspended' && animationHasSound(name)) {
+      pendingAnimationWithSound = name;
+      audioNotice.classList.remove('hidden');
+    }
+
     renderCurrentFrame();
     scheduleNextFrame();
   } catch (err) {

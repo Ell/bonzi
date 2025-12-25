@@ -96,6 +96,24 @@
       .hidden {
         display: none;
       }
+      .audio-notice {
+        background: #4a3a00;
+        border: 1px solid #8a7000;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .audio-notice:hover {
+        background: #5a4a00;
+      }
+      .audio-notice span {
+        flex: 1;
+      }
     </style>
   </head>
   <body>
@@ -104,26 +122,58 @@
     <div class="controls">
       <select id="agent-select">
         <option value="">Select agent...</option>
+        <option value="agents/AGENT.ACS">Agent</option>
         <option value="agents/Airplane.acs">Airplane</option>
+        <option value="agents/ALIEN.ACS">Alien</option>
+        <option value="agents/awcbetachuckman.acs">AWC Beta Chuckman</option>
+        <option value="agents/Blanche.acs">Blanche</option>
+        <option value="agents/Blinky.acs">Blinky</option>
         <option value="agents/Bonzi.acs">Bonzi</option>
+        <option value="agents/Bugs.acs">Bugs</option>
+        <option value="agents/Buzz Lightyear.acs">Buzz Lightyear</option>
         <option value="agents/cami.acs">Cami</option>
+        <option value="agents/cats.acs">Cats</option>
+        <option value="agents/CLAUDE.ACS">Claude</option>
         <option value="agents/clippit.acs">Clippit</option>
+        <option value="agents/Cupid.acs">Cupid</option>
+        <option value="agents/daffy.acs">Daffy</option>
         <option value="agents/diablo.acs">Diablo</option>
+        <option value="agents/dog.acs">Dog</option>
+        <option value="agents/dogbert.acs">Dogbert</option>
         <option value="agents/Elfis.acs">Elfis</option>
+        <option value="agents/elvis2.acs">Elvis</option>
+        <option value="agents/enterprise.acs">Enterprise</option>
         <option value="agents/felix.acs">Felix</option>
+        <option value="agents/gnome.acs">Gnome</option>
         <option value="agents/GreyAlien.acs">Grey Alien</option>
         <option value="agents/Homer Simpson.acs">Homer Simpson</option>
         <option value="agents/hoops.acs">Hoops</option>
         <option value="agents/jesus.acs">Jesus</option>
+        <option value="agents/Lina.acs">Lina</option>
+        <option value="agents/Marge.acs">Marge</option>
+        <option value="agents/Marvin.acs">Marvin</option>
+        <option value="agents/Matej8251.acs">Matej8251</option>
+        <option value="agents/MAX.ACS">Max</option>
+        <option value="agents/MIKU.ACS">Miku</option>
         <option value="agents/MrEagle.acs">Mr Eagle</option>
+        <option value="agents/Peedy.acs">Peedy</option>
         <option value="agents/Pencilly.acs">Pencilly</option>
         <option value="agents/pikachu.acs">Pikachu</option>
+        <option value="agents/Professor.acs">Professor</option>
         <option value="agents/Raysa.acs">Raysa</option>
+        <option value="agents/Reaper.acs">Reaper</option>
+        <option value="agents/Robocop.acs">Robocop</option>
         <option value="agents/Rula.acs">Rula</option>
+        <option value="agents/Santa.acs">Santa</option>
         <option value="agents/Serilly.acs">Serilly</option>
+        <option value="agents/Skull.acs">Skull</option>
+        <option value="agents/snowman.acs">Snowman</option>
+        <option value="agents/spaceman.acs">Spaceman</option>
         <option value="agents/Stormyagent.acs">Stormy</option>
+        <option value="agents/tiger.acs">Tiger</option>
         <option value="agents/Toto.acs">Toto</option>
         <option value="agents/vrgirl.acs">VR Girl</option>
+        <option value="agents/Wolfman.acs">Wolfman</option>
         <option value="agents/yoyo.acs">Yoyo</option>
       </select>
       <span style="color: #888;">or</span>
@@ -131,6 +181,10 @@
       <select id="animation-select" disabled>
         <option value="">Select animation...</option>
       </select>
+    </div>
+
+    <div id="audio-notice" class="audio-notice hidden" onclick="enableAudio()">
+      <span>Click to enable audio</span>
     </div>
 
     <div class="playback-controls">
