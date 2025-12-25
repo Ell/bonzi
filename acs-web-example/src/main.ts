@@ -1,4 +1,4 @@
-import { AcsFile, AnimationData } from 'acs-web';
+import { AcsFile, AnimationData, AnimationInfo } from 'acs-web';
 
 // DOM elements
 const agentSelect = document.getElementById('agent-select') as HTMLSelectElement;
@@ -50,26 +50,8 @@ async function enableAudio() {
 // Export to window for HTML onclick
 (window as any).enableAudio = enableAudio;
 
-// Check if an animation has any sounds
-function animationHasSound(animName: string): boolean {
-  if (!acsFile) return false;
-  try {
-    const anim = acsFile.getAnimation(animName);
-    for (let i = 0; i < anim.frameCount; i++) {
-      const frame = anim.getFrame(i);
-      if (frame && frame.soundIndex >= 0) {
-        frame.free();
-        anim.free();
-        return true;
-      }
-      frame?.free();
-    }
-    anim.free();
-  } catch (e) {
-    // Ignore errors
-  }
-  return false;
-}
+// Cache animation info for quick hasSound lookups
+let animationInfoCache: Map<string, AnimationInfo> = new Map();
 
 // Volume slider handler
 volumeSlider.addEventListener('input', () => {
@@ -183,6 +165,7 @@ async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
     acsFile.free();
   }
   soundCache.clear();
+  animationInfoCache.clear();
 
   // Load new file
   acsFile = new AcsFile(data);
@@ -191,32 +174,21 @@ async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
   canvas.width = acsFile.width;
   canvas.height = acsFile.height;
 
+  // Get all animation info in one call (much more efficient)
+  const animInfoList = acsFile.getAllAnimationInfo();
+  const animations = animInfoList.map(info => info.name);
+
+  // Build cache for quick lookups
+  for (const info of animInfoList) {
+    animationInfoCache.set(info.name, info);
+  }
+
   // Populate animation dropdown
-  const animations = acsFile.animationNames();
   animationSelect.innerHTML = '<option value="">Select animation...</option>';
-  for (const name of animations) {
+  for (const info of animInfoList) {
     const option = document.createElement('option');
-    option.value = name;
-
-    // Check if animation has any sounds
-    let hasSound = false;
-    try {
-      const anim = acsFile.getAnimation(name);
-      for (let i = 0; i < anim.frameCount; i++) {
-        const frame = anim.getFrame(i);
-        if (frame && frame.soundIndex >= 0) {
-          hasSound = true;
-          frame.free();
-          break;
-        }
-        frame?.free();
-      }
-      anim.free();
-    } catch (e) {
-      // Ignore errors
-    }
-
-    option.textContent = hasSound ? `${name} *` : name;
+    option.value = info.name;
+    option.textContent = info.hasSound ? `${info.name} *` : info.name;
     animationSelect.appendChild(option);
   }
   animationSelect.disabled = false;
@@ -272,10 +244,8 @@ async function preloadSounds() {
   console.log(`Preloading ${soundCount} sounds...`);
   for (let i = 0; i < soundCount; i++) {
     try {
-      const wavData = acsFile.getSound(i);
-      // Copy the data to a new ArrayBuffer (required for decodeAudioData)
-      const arrayBuffer = new ArrayBuffer(wavData.byteLength);
-      new Uint8Array(arrayBuffer).set(wavData);
+      // Use getSoundAsArrayBuffer - no manual copy needed
+      const arrayBuffer = acsFile.getSoundAsArrayBuffer(i);
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       soundCache.set(i, audioBuffer);
       console.log(`Loaded sound ${i}: ${audioBuffer.duration.toFixed(2)}s`);
@@ -322,7 +292,8 @@ function playAnimation(name: string) {
     currentFrame = 0;
 
     // Check if audio is blocked and this animation has sound
-    if (audioContext && audioContext.state === 'suspended' && animationHasSound(name)) {
+    const animInfo = animationInfoCache.get(name);
+    if (audioContext && audioContext.state === 'suspended' && animInfo?.hasSound) {
       pendingAnimationWithSound = name;
       audioNotice.classList.remove('hidden');
     }

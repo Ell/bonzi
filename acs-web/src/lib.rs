@@ -79,6 +79,48 @@ impl AnimationData {
             image_count: f.image_count as u32,
         })
     }
+
+    /// Check if any frame in this animation has an associated sound.
+    #[wasm_bindgen(getter, js_name = "hasSound")]
+    pub fn has_sound(&self) -> bool {
+        self.frames.iter().any(|f| f.sound_index.is_some())
+    }
+}
+
+/// Summary information about an animation (lightweight, no cleanup needed).
+#[wasm_bindgen]
+pub struct AnimationInfo {
+    name: String,
+    frame_count: usize,
+    has_sound: bool,
+    return_animation: Option<String>,
+}
+
+#[wasm_bindgen]
+impl AnimationInfo {
+    /// Animation name.
+    #[wasm_bindgen(getter)]
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    /// Number of frames in this animation.
+    #[wasm_bindgen(getter, js_name = "frameCount")]
+    pub fn frame_count(&self) -> usize {
+        self.frame_count
+    }
+
+    /// Whether any frame in this animation has an associated sound.
+    #[wasm_bindgen(getter, js_name = "hasSound")]
+    pub fn has_sound(&self) -> bool {
+        self.has_sound
+    }
+
+    /// Name of the animation to return to after this one completes.
+    #[wasm_bindgen(getter, js_name = "returnAnimation")]
+    pub fn return_animation(&self) -> Option<String> {
+        self.return_animation.clone()
+    }
 }
 
 /// An ACS character file.
@@ -209,5 +251,44 @@ impl AcsFile {
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(js_sys::Uint8Array::from(&sound.data[..]))
+    }
+
+    /// Get sound data by index as ArrayBuffer (suitable for decodeAudioData).
+    #[wasm_bindgen(js_name = "getSoundAsArrayBuffer")]
+    pub fn get_sound_as_array_buffer(&self, index: usize) -> Result<js_sys::ArrayBuffer, JsError> {
+        let sound = self
+            .inner
+            .sound(index)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        let buffer = js_sys::ArrayBuffer::new(sound.data.len() as u32);
+        let view = js_sys::Uint8Array::new(&buffer);
+        view.copy_from(&sound.data);
+        Ok(buffer)
+    }
+
+    /// Get summary info for all animations (useful for building UI lists).
+    #[wasm_bindgen(js_name = "getAllAnimationInfo")]
+    pub fn get_all_animation_info(&mut self) -> Vec<AnimationInfo> {
+        let names: Vec<String> = self
+            .inner
+            .animation_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        names
+            .into_iter()
+            .filter_map(|name| {
+                let anim = self.inner.animation(&name).ok()?;
+                let has_sound = anim.frames.iter().any(|f| f.sound_index.is_some());
+                Some(AnimationInfo {
+                    name: anim.name.clone(),
+                    frame_count: anim.frames.len(),
+                    has_sound,
+                    return_animation: anim.return_animation.clone(),
+                })
+            })
+            .collect()
     }
 }
