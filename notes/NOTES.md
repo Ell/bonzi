@@ -317,7 +317,7 @@ struct ANIMATIONDATA {
 
 **Transition Types:**
 - `0` - Return animation: plays `returnAnimation` when complete
-- `1` - Exit branches: uses exit branching for transitions
+- `1` - Exit branches: uses exit branching for transition
 - `2` - No transition: simply ends
 
 ---
@@ -578,53 +578,6 @@ IDLE1_1 through IDLE1_26, IDLE3_1, IDLE3_2, ...
 
 ### Audio Count
 22 sound effects (index 0-21)
-
----
-
-## Parsing Strategy
-
-### Recommended Approach
-
-1. **Read Header** (36 bytes)
-   - Verify magic signature
-   - Extract 4 ACSLOCATOR structures
-
-2. **Parse AnimationInfo** (at animationInfo.offset)
-   - Read animation count
-   - For each animation: read name + locator
-   - Store for later frame parsing
-
-3. **Parse ImageInfo** (at imageInfo.offset)
-   - Read image count
-   - For each image: read locator + checksum
-   - Defer actual image decoding until needed
-
-4. **Parse AudioInfo** (at audioInfo.offset)
-   - Read audio count
-   - For each audio: read locator + checksum
-   - Defer audio decoding until needed
-
-5. **Parse CharacterInfo** (at characterInfo.offset)
-   - Read version, GUID, dimensions
-   - Read palette (critical for image rendering)
-   - Read localized info, voice/balloon settings
-   - Read state mappings
-
-6. **On-Demand Loading**
-   - Parse individual animation frames when animation is played
-   - Decompress images when needed for rendering
-   - Load audio when sound is triggered
-
-### Key Considerations
-
-- **Endianness**: All values are little-endian
-- **String Handling**: UTF-16LE with null terminator included in length
-- **Compression**: Use ZLIB inflate for compressed data
-- **Palette**: Single shared palette for all images
-- **Transparency**: Use `transparentIndex` from character info
-- **Alignment**: Image rows are DWORD-aligned (4-byte boundary)
-
----
 
 ## References
 
