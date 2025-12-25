@@ -17,6 +17,7 @@ let currentFrame = 0;
 let animationTimer: number | null = null;
 let shouldLoop = false;
 let volume = 0.5;
+let branchingEnabled = true; // Probabilistic branching enabled by default
 
 // Audio cache - preload sounds as AudioBuffers
 let audioContext: AudioContext | null = null;
@@ -31,6 +32,15 @@ const audioNotice = document.getElementById('audio-notice')!;
 loopToggle.addEventListener('change', () => {
   shouldLoop = loopToggle.checked;
 });
+
+// Branching toggle handler
+const branchToggle = document.getElementById('branch-toggle') as HTMLInputElement | null;
+if (branchToggle) {
+  branchToggle.checked = branchingEnabled;
+  branchToggle.addEventListener('change', () => {
+    branchingEnabled = branchToggle.checked;
+  });
+}
 
 // Enable audio function (called from HTML onclick)
 async function enableAudio() {
@@ -331,6 +341,37 @@ function renderCurrentFrame() {
   }
 }
 
+// Select next frame using probabilistic branching if enabled
+function selectNextFrame(): number {
+  if (!currentAnimation || !branchingEnabled) {
+    return currentFrame + 1;
+  }
+
+  const branches = currentAnimation.getFrameBranches(currentFrame);
+  if (branches.length === 0) {
+    return currentFrame + 1; // No branches, linear progression
+  }
+
+  // Calculate total probability weight
+  const total = branches.reduce((sum, b) => sum + b.probability, 0);
+  if (total === 0) {
+    return currentFrame + 1;
+  }
+
+  // Roll and select branch based on probability
+  const roll = Math.random() * total;
+  let cumulative = 0;
+  for (const branch of branches) {
+    cumulative += branch.probability;
+    if (roll < cumulative) {
+      return branch.frameIndex;
+    }
+  }
+
+  // Fallback to last branch (shouldn't reach here normally)
+  return branches[branches.length - 1].frameIndex;
+}
+
 function scheduleNextFrame() {
   if (!currentAnimation || !acsFile) return;
 
@@ -348,7 +389,7 @@ function scheduleNextFrame() {
   }
 
   animationTimer = window.setTimeout(() => {
-    const nextFrame = currentFrame + 1;
+    const nextFrame = selectNextFrame();
 
     if (nextFrame >= currentAnimation!.frameCount) {
       // Animation finished - check for return animation
@@ -366,7 +407,7 @@ function scheduleNextFrame() {
       }
       // If not looping and no return animation, animation stops
     } else {
-      // Continue to next frame
+      // Continue to next frame (may be a branch target)
       currentFrame = nextFrame;
       renderCurrentFrame();
       scheduleNextFrame();

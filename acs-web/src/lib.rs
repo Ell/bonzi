@@ -34,6 +34,17 @@ pub struct FrameData {
     pub sound_index: i32, // -1 if no sound
     #[wasm_bindgen(readonly, js_name = "imageCount")]
     pub image_count: u32,
+    #[wasm_bindgen(readonly, js_name = "branchCount")]
+    pub branch_count: u32,
+}
+
+/// A branch option for probabilistic frame transitions.
+#[wasm_bindgen]
+pub struct BranchData {
+    #[wasm_bindgen(readonly, js_name = "frameIndex")]
+    pub frame_index: u32,
+    #[wasm_bindgen(readonly)]
+    pub probability: u16,
 }
 
 /// Animation metadata.
@@ -48,6 +59,12 @@ struct FrameInfo {
     duration_ms: u32,
     sound_index: Option<usize>,
     image_count: usize,
+    branches: Vec<BranchInfo>,
+}
+
+struct BranchInfo {
+    frame_index: usize,
+    probability: u16,
 }
 
 #[wasm_bindgen]
@@ -77,7 +94,25 @@ impl AnimationData {
             duration_ms: f.duration_ms,
             sound_index: f.sound_index.map(|i| i as i32).unwrap_or(-1),
             image_count: f.image_count as u32,
+            branch_count: f.branches.len() as u32,
         })
+    }
+
+    /// Get branches for a frame by index.
+    #[wasm_bindgen(js_name = "getFrameBranches")]
+    pub fn get_frame_branches(&self, index: usize) -> Vec<BranchData> {
+        self.frames
+            .get(index)
+            .map(|f| {
+                f.branches
+                    .iter()
+                    .map(|b| BranchData {
+                        frame_index: b.frame_index as u32,
+                        probability: b.probability,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Check if any frame in this animation has an associated sound.
@@ -219,6 +254,14 @@ impl AcsFile {
                     duration_ms: f.duration_ms,
                     sound_index: f.sound_index,
                     image_count: f.images.len(),
+                    branches: f
+                        .branches
+                        .iter()
+                        .map(|b| BranchInfo {
+                            frame_index: b.frame_index,
+                            probability: b.probability,
+                        })
+                        .collect(),
                 })
                 .collect(),
         };
