@@ -70,18 +70,23 @@ pub struct Animation {
     pub transition_type: TransitionType,
 }
 
+/// How an animation transitions when it completes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransitionType {
+    /// Type 0: Play the `return_animation` when complete
+    UseReturnAnimation,
+    /// Type 1: Use frame exit branches for transition
+    UseExitBranch,
+    /// Type 2: No automatic transition, animation simply ends
     None,
-    ReturnAnimation,
-    ExitBranch,
 }
 
 impl From<u8> for TransitionType {
     fn from(val: u8) -> Self {
         match val {
-            1 => Self::ReturnAnimation,
-            2 => Self::ExitBranch,
+            0 => Self::UseReturnAnimation,
+            1 => Self::UseExitBranch,
+            2 => Self::None,
             _ => Self::None,
         }
     }

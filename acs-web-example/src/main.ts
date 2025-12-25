@@ -1,4 +1,7 @@
-import { AcsFile, AnimationData, AnimationInfo } from 'acs-web';
+import init, { AcsFile, AnimationData, AnimationInfo } from 'acs-web';
+
+// Initialize WASM module
+await init();
 
 // DOM elements
 const agentSelect = document.getElementById('agent-select') as HTMLSelectElement;
@@ -46,7 +49,6 @@ if (branchToggle) {
 async function enableAudio() {
   if (audioContext && audioContext.state === 'suspended') {
     await audioContext.resume();
-    console.log('AudioContext resumed after user click');
     audioNotice.classList.add('hidden');
 
     // Replay the animation that had sound
@@ -120,7 +122,8 @@ fileInput.addEventListener('change', async (e) => {
   }
 });
 
-// Animation select handler
+// Animation select handler - use both change and click to allow re-selecting same animation
+let lastSelectedAnim = '';
 animationSelect.addEventListener('change', async () => {
   const animName = animationSelect.value;
   if (animName && acsFile) {
@@ -130,8 +133,24 @@ animationSelect.addEventListener('change', async () => {
       audioNotice.classList.add('hidden');
       pendingAnimationWithSound = null;
     }
+    lastSelectedAnim = animName;
     playAnimation(animName);
     updateUrl();
+  }
+});
+
+// Allow clicking the same animation to restart it
+animationSelect.addEventListener('click', async (e) => {
+  // Only trigger on option click, not dropdown open
+  const animName = animationSelect.value;
+  if (animName && acsFile && animName === lastSelectedAnim && e.detail > 0) {
+    // User interaction - try to resume audio
+    if (audioContext && audioContext.state === 'suspended') {
+      await audioContext.resume();
+      audioNotice.classList.add('hidden');
+      pendingAnimationWithSound = null;
+    }
+    playAnimation(animName);
   }
 });
 
@@ -200,23 +219,38 @@ async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
   }
 
   // Build state cache - map each animation to its state
+  // State animation names may be uppercase while actual names are mixed case,
+  // so we need to match case-insensitively
+  const actualAnimNames = new Map<string, string>();
+  for (const name of animations) {
+    actualAnimNames.set(name.toLowerCase(), name);
+  }
+
   const states = acsFile.getStates();
   for (const state of states) {
     const stateName = state.name.toLowerCase();
-    for (const animName of state.animations) {
-      animationToState.set(animName, state.name);
-      // Collect idle state animations for fallback
-      if (stateName.includes('idle') || stateName.includes('rest')) {
-        idleStateAnimations.push(animName);
+    const stateAnims = state.animations;
+    const isIdleState = stateName.includes('idl');
+    for (const stateAnimName of stateAnims) {
+      // Find the actual animation name (case-insensitive match)
+      const actualName = actualAnimNames.get(stateAnimName.toLowerCase());
+      if (actualName) {
+        animationToState.set(actualName.toLowerCase(), state.name);
+        // Collect idle state animations for fallback (state names use "IDLING")
+        if (isIdleState) {
+          idleStateAnimations.push(actualName);
+        }
       }
     }
     state.free();
   }
-  console.log(`Loaded ${states.length} states, ${idleStateAnimations.length} idle animations`);
 
-  // Populate animation dropdown
+  // Populate animation dropdown with playable animations only
+  // (excludes Return/Continued helper animations)
+  const playableNames = new Set(acsFile.playableAnimationNames().map(n => n.toLowerCase()));
   animationSelect.innerHTML = '<option value="">Select animation...</option>';
   for (const info of animInfoList) {
+    if (!playableNames.has(info.name.toLowerCase())) continue;
     const option = document.createElement('option');
     option.value = info.name;
     option.textContent = info.hasSound ? `${info.name} *` : info.name;
@@ -272,41 +306,29 @@ async function preloadSounds() {
   }
 
   const soundCount = acsFile.soundCount();
-  console.log(`Preloading ${soundCount} sounds...`);
   for (let i = 0; i < soundCount; i++) {
     try {
       // Use getSoundAsArrayBuffer - no manual copy needed
       const arrayBuffer = acsFile.getSoundAsArrayBuffer(i);
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       soundCache.set(i, audioBuffer);
-      console.log(`Loaded sound ${i}: ${audioBuffer.duration.toFixed(2)}s`);
     } catch (err) {
       console.warn(`Failed to load sound ${i}:`, err);
     }
   }
-  console.log(`Preloaded ${soundCache.size} sounds successfully`);
 }
 
 async function playSound(index: number) {
-  console.log(`playSound(${index}) called`);
-  if (!audioContext || !gainNode || index < 0) {
-    console.log(`  skipping: audioContext=${!!audioContext}, gainNode=${!!gainNode}, index=${index}`);
-    return;
-  }
+  if (!audioContext || !gainNode || index < 0) return;
 
   const buffer = soundCache.get(index);
-  if (!buffer) {
-    console.log(`  no buffer for sound ${index}`);
-    return;
-  }
+  if (!buffer) return;
 
   // Resume AudioContext if suspended (browser autoplay policy)
   if (audioContext.state === 'suspended') {
-    console.log('  resuming suspended AudioContext');
     await audioContext.resume();
   }
 
-  console.log(`  playing sound ${index}, duration=${buffer.duration.toFixed(2)}s, volume=${volume}`);
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
   source.connect(gainNode);
@@ -353,7 +375,8 @@ function renderCurrentFrame() {
     const clampedArray = new Uint8ClampedArray(imageData.data);
     const canvasImageData = new ImageData(clampedArray, imageData.width, imageData.height);
 
-    // Draw directly over previous frame - no clearRect needed
+    // Clear canvas before drawing to prevent old frame bleed-through
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.putImageData(canvasImageData, 0, 0);
 
     imageData.free();
@@ -386,10 +409,11 @@ function findIdleAnimation(): string | null {
 
 // Check if current animation is in an idle state
 function isInIdleState(animName: string): boolean {
-  const stateName = animationToState.get(animName);
+  const stateName = animationToState.get(animName.toLowerCase());
   if (!stateName) return false;
   const lowerState = stateName.toLowerCase();
-  return lowerState.includes('idle') || lowerState.includes('rest');
+  // State names use "IDLING" not "IDLE"
+  return lowerState.includes('idl');
 }
 
 // Select next frame using probabilistic branching if enabled
@@ -435,7 +459,6 @@ function scheduleNextFrame() {
 
   // Play sound if this frame has one
   if (soundIndex >= 0) {
-    console.log(`Frame ${currentFrame} has soundIndex=${soundIndex}`);
     playSound(soundIndex);
   }
 
@@ -443,32 +466,34 @@ function scheduleNextFrame() {
     const nextFrame = selectNextFrame();
 
     if (nextFrame >= currentAnimation!.frameCount) {
-      // Animation finished - check for return animation
+      // Animation finished - determine next action based on transition type
+      const currentAnimName = currentAnimation!.name;
+      const transitionType = currentAnimation!.transitionType;
       const returnAnim = currentAnimation!.returnAnimation;
 
-      if (returnAnim) {
-        // Update dropdown to show new animation
-        animationSelect.value = returnAnim;
+      if (transitionType.usesReturnAnimation && returnAnim) {
+        // Type 0: Use the specified return animation
         playAnimation(returnAnim);
-      } else if (!isInIdleState(currentAnimation!.name)) {
-        // Not in idle state and no return animation - transition to idle
+      } else {
+        // Type 1 (exit branch) or Type 2 (none): No automatic next animation
+        // Fall back to idle state animations
+        const inIdleState = isInIdleState(currentAnimName);
         const idleAnim = findIdleAnimation();
-        if (idleAnim) {
-          animationSelect.value = idleAnim;
+
+        if (idleAnim && !inIdleState) {
+          // Not in idle state - transition to idle
           playAnimation(idleAnim);
         } else if (shouldLoop) {
-          // No idle found, loop current animation
+          // Loop current animation
           currentFrame = 0;
           renderCurrentFrame();
           scheduleNextFrame();
+        } else if (idleAnim && idleAnim !== currentAnimName) {
+          // Pick a different idle animation for variety
+          playAnimation(idleAnim);
         }
-      } else if (shouldLoop) {
-        // Already in idle state and looping enabled
-        currentFrame = 0;
-        renderCurrentFrame();
-        scheduleNextFrame();
+        // Otherwise animation stops (agent is at rest)
       }
-      // If in idle state without loop, animation stops (agent is at rest)
     } else {
       // Continue to next frame (may be a branch target)
       currentFrame = nextFrame;

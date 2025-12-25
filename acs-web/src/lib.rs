@@ -47,11 +47,39 @@ pub struct BranchData {
     pub probability: u16,
 }
 
+/// How an animation transitions when complete.
+/// 0 = UseReturnAnimation, 1 = UseExitBranch, 2 = None
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct TransitionType(u8);
+
+#[wasm_bindgen]
+impl TransitionType {
+    /// Type 0: Play the return_animation when complete
+    #[wasm_bindgen(getter, js_name = "usesReturnAnimation")]
+    pub fn uses_return_animation(&self) -> bool {
+        self.0 == 0
+    }
+
+    /// Type 1: Uses exit branches (for graceful interruption)
+    #[wasm_bindgen(getter, js_name = "usesExitBranch")]
+    pub fn uses_exit_branch(&self) -> bool {
+        self.0 == 1
+    }
+
+    /// Type 2: No automatic transition
+    #[wasm_bindgen(getter, js_name = "isNone")]
+    pub fn is_none(&self) -> bool {
+        self.0 == 2
+    }
+}
+
 /// Animation metadata.
 #[wasm_bindgen]
 pub struct AnimationData {
     name: String,
     return_animation: Option<String>,
+    transition_type: TransitionType,
     frames: Vec<FrameInfo>,
 }
 
@@ -79,6 +107,12 @@ impl AnimationData {
     #[wasm_bindgen(getter, js_name = "returnAnimation")]
     pub fn return_animation(&self) -> Option<String> {
         self.return_animation.clone()
+    }
+
+    /// How this animation transitions when complete.
+    #[wasm_bindgen(getter, js_name = "transitionType")]
+    pub fn transition_type(&self) -> TransitionType {
+        self.transition_type
     }
 
     /// Number of frames in this animation.
@@ -229,6 +263,21 @@ impl AcsFile {
             .collect()
     }
 
+    /// List animation names suitable for direct playback.
+    /// Excludes helper animations (Return/Continued variants) that are meant to be chained automatically.
+    #[wasm_bindgen(js_name = "playableAnimationNames")]
+    pub fn playable_animation_names(&self) -> Vec<String> {
+        self.inner
+            .animation_names()
+            .into_iter()
+            .filter(|name| {
+                let lower = name.to_lowercase();
+                !lower.ends_with("return") && !lower.ends_with("continued")
+            })
+            .map(|s| s.to_string())
+            .collect()
+    }
+
     /// Get number of images in the file.
     #[wasm_bindgen(js_name = "imageCount")]
     pub fn image_count(&self) -> usize {
@@ -266,9 +315,16 @@ impl AcsFile {
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         // Clone the data we need to avoid holding a borrow
+        let transition_type = match anim.transition_type {
+            acs::TransitionType::UseReturnAnimation => TransitionType(0),
+            acs::TransitionType::UseExitBranch => TransitionType(1),
+            acs::TransitionType::None => TransitionType(2),
+        };
+
         let result = AnimationData {
             name: anim.name.clone(),
             return_animation: anim.return_animation.clone(),
+            transition_type,
             frames: anim
                 .frames
                 .iter()
