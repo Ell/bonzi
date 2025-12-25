@@ -332,13 +332,25 @@ function renderCurrentFrame() {
     const clampedArray = new Uint8ClampedArray(imageData.data);
     const canvasImageData = new ImageData(clampedArray, imageData.width, imageData.height);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw directly over previous frame - no clearRect needed
     ctx.putImageData(canvasImageData, 0, 0);
 
     imageData.free();
   } catch (err) {
     console.error('Failed to render frame:', err);
   }
+}
+
+// Find an idle animation to return to when no return animation is specified
+function findIdleAnimation(): string | null {
+  if (!acsFile) return null;
+  const idleNames = ['RestPose', 'Idle1_1', 'Idle', 'Stand', 'Neutral'];
+  const animations = acsFile.animationNames();
+  for (const name of idleNames) {
+    const match = animations.find(a => a.toLowerCase() === name.toLowerCase());
+    if (match) return match;
+  }
+  return null;
 }
 
 // Select next frame using probabilistic branching if enabled
@@ -399,13 +411,20 @@ function scheduleNextFrame() {
         // Update dropdown to show new animation
         animationSelect.value = returnAnim;
         playAnimation(returnAnim);
-      } else if (shouldLoop) {
-        // Loop current animation
-        currentFrame = 0;
-        renderCurrentFrame();
-        scheduleNextFrame();
+      } else {
+        // No return animation - fallback to idle
+        const idleAnim = findIdleAnimation();
+        if (idleAnim && idleAnim !== currentAnimation!.name) {
+          animationSelect.value = idleAnim;
+          playAnimation(idleAnim);
+        } else if (shouldLoop) {
+          // Loop current animation
+          currentFrame = 0;
+          renderCurrentFrame();
+          scheduleNextFrame();
+        }
+        // If not looping and no idle found, animation stops
       }
-      // If not looping and no return animation, animation stops
     } else {
       // Continue to next frame (may be a branch target)
       currentFrame = nextFrame;
