@@ -167,6 +167,13 @@ pub struct Sound {
     pub data: Vec<u8>,
 }
 
+/// A character state grouping animations.
+#[derive(Debug, Clone)]
+pub struct State {
+    pub name: String,
+    pub animations: Vec<String>,
+}
+
 struct AnimationCacheEntry {
     name: String,
     offset: u32,
@@ -183,6 +190,7 @@ pub struct Acs {
     animation_list: Vec<AnimationCacheEntry>,
     image_list: Vec<ImageEntry>,
     audio_list: Vec<AudioEntry>,
+    states: Vec<State>,
 }
 
 impl Acs {
@@ -230,6 +238,16 @@ impl Acs {
 
         let audio_list = reader.read_audio_list(&header.audio_info)?;
 
+        // Convert states from raw format
+        let states: Vec<State> = raw_character_info
+            .states
+            .iter()
+            .map(|s| State {
+                name: s.name.clone(),
+                animations: s.animations.clone(),
+            })
+            .collect();
+
         Ok(Self {
             data,
             header,
@@ -238,6 +256,7 @@ impl Acs {
             animation_list,
             image_list,
             audio_list,
+            states,
         })
     }
 
@@ -252,6 +271,11 @@ impl Acs {
             .iter()
             .map(|e| e.name.as_str())
             .collect()
+    }
+
+    /// Get all states (animation groupings).
+    pub fn states(&self) -> &[State] {
+        &self.states
     }
 
     /// Get animation by name (lazy load).

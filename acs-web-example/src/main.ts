@@ -63,6 +63,10 @@ async function enableAudio() {
 // Cache animation info for quick hasSound lookups
 let animationInfoCache: Map<string, AnimationInfo> = new Map();
 
+// State cache - maps animation name to state name
+let animationToState: Map<string, string> = new Map();
+let idleStateAnimations: string[] = [];
+
 // Volume slider handler
 volumeSlider.addEventListener('input', () => {
   volume = parseInt(volumeSlider.value) / 100;
@@ -176,6 +180,8 @@ async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
   }
   soundCache.clear();
   animationInfoCache.clear();
+  animationToState.clear();
+  idleStateAnimations = [];
 
   // Load new file
   acsFile = new AcsFile(data);
@@ -192,6 +198,21 @@ async function loadAcsFile(data: Uint8Array, initialAnimation?: string) {
   for (const info of animInfoList) {
     animationInfoCache.set(info.name, info);
   }
+
+  // Build state cache - map each animation to its state
+  const states = acsFile.getStates();
+  for (const state of states) {
+    const stateName = state.name.toLowerCase();
+    for (const animName of state.animations) {
+      animationToState.set(animName, state.name);
+      // Collect idle state animations for fallback
+      if (stateName.includes('idle') || stateName.includes('rest')) {
+        idleStateAnimations.push(animName);
+      }
+    }
+    state.free();
+  }
+  console.log(`Loaded ${states.length} states, ${idleStateAnimations.length} idle animations`);
 
   // Populate animation dropdown
   animationSelect.innerHTML = '<option value="">Select animation...</option>';
@@ -342,8 +363,18 @@ function renderCurrentFrame() {
 }
 
 // Find an idle animation to return to when no return animation is specified
+// Uses state-based lookup if states are available, falls back to name matching
 function findIdleAnimation(): string | null {
   if (!acsFile) return null;
+
+  // First try: use state-based idle animations if available
+  if (idleStateAnimations.length > 0) {
+    // Pick a random idle animation from the state for variety
+    const idx = Math.floor(Math.random() * idleStateAnimations.length);
+    return idleStateAnimations[idx];
+  }
+
+  // Fallback: match by common idle animation names
   const idleNames = ['RestPose', 'Idle1_1', 'Idle', 'Stand', 'Neutral'];
   const animations = acsFile.animationNames();
   for (const name of idleNames) {
@@ -351,6 +382,14 @@ function findIdleAnimation(): string | null {
     if (match) return match;
   }
   return null;
+}
+
+// Check if current animation is in an idle state
+function isInIdleState(animName: string): boolean {
+  const stateName = animationToState.get(animName);
+  if (!stateName) return false;
+  const lowerState = stateName.toLowerCase();
+  return lowerState.includes('idle') || lowerState.includes('rest');
 }
 
 // Select next frame using probabilistic branching if enabled
@@ -411,20 +450,25 @@ function scheduleNextFrame() {
         // Update dropdown to show new animation
         animationSelect.value = returnAnim;
         playAnimation(returnAnim);
-      } else {
-        // No return animation - fallback to idle
+      } else if (!isInIdleState(currentAnimation!.name)) {
+        // Not in idle state and no return animation - transition to idle
         const idleAnim = findIdleAnimation();
-        if (idleAnim && idleAnim !== currentAnimation!.name) {
+        if (idleAnim) {
           animationSelect.value = idleAnim;
           playAnimation(idleAnim);
         } else if (shouldLoop) {
-          // Loop current animation
+          // No idle found, loop current animation
           currentFrame = 0;
           renderCurrentFrame();
           scheduleNextFrame();
         }
-        // If not looping and no idle found, animation stops
+      } else if (shouldLoop) {
+        // Already in idle state and looping enabled
+        currentFrame = 0;
+        renderCurrentFrame();
+        scheduleNextFrame();
       }
+      // If in idle state without loop, animation stops (agent is at rest)
     } else {
       // Continue to next frame (may be a branch target)
       currentFrame = nextFrame;

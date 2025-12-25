@@ -131,6 +131,28 @@ pub struct AnimationInfo {
     return_animation: Option<String>,
 }
 
+/// A character state grouping animations.
+#[wasm_bindgen]
+pub struct StateInfo {
+    name: String,
+    animations: Vec<String>,
+}
+
+#[wasm_bindgen]
+impl StateInfo {
+    /// State name (e.g., "Idle", "Speaking", "Greeting").
+    #[wasm_bindgen(getter)]
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    /// List of animation names in this state.
+    #[wasm_bindgen(getter)]
+    pub fn animations(&self) -> Vec<String> {
+        self.animations.clone()
+    }
+}
+
 #[wasm_bindgen]
 impl AnimationInfo {
     /// Animation name.
@@ -331,6 +353,19 @@ impl AcsFile {
                     has_sound,
                     return_animation: anim.return_animation.clone(),
                 })
+            })
+            .collect()
+    }
+
+    /// Get all character states (animation groupings).
+    #[wasm_bindgen(js_name = "getStates")]
+    pub fn get_states(&self) -> Vec<StateInfo> {
+        self.inner
+            .states()
+            .iter()
+            .map(|s| StateInfo {
+                name: s.name.clone(),
+                animations: s.animations.clone(),
             })
             .collect()
     }
