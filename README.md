@@ -1,12 +1,15 @@
 # bonzi
 
-Rust parser and web viewer for Microsoft Agent character files (.acs).
+Rust tools for Microsoft Agent character files (.acs) and SAPI4 text-to-speech.
 
 ## Structure
 
-- `acs/` - Core Rust library for parsing ACS files
-- `acs-web/` - WASM bindings for browser use
+- `acs/` - Rust library for parsing ACS files
+- `acs-web/` - WASM bindings for browser
 - `acs-web-example/` - Web viewer demo
+- `sapi4-rs/` - Rust SAPI4 TTS binary (cross-compiled for Windows)
+- `sapi4-api/` - Docker HTTP API for TTS
+- `sapi4-tts/` - Docker container for running sapi4-rs
 
 ## Building
 
