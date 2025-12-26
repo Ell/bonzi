@@ -1,0 +1,21 @@
+[package]
+name = "sapi4-rs"
+version = "0.1.0"
+edition = "2021"
+description = "SAPI4 Text-to-Speech CLI using Microsoft Speech API 4.0"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+thiserror = "1"
+acs = { path = "../acs" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_Media_Audio",
+    "Win32_UI_WindowsAndMessaging",
+    "implement",
+]}
+windows-core = "0.58"

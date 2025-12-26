@@ -1,0 +1,5 @@
+services:
+  sapi4:
+    build: .
+    volumes:
+      - ./output:/output
