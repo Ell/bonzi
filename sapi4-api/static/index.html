@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAPI4 TTS API</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --card: #16213e;
+      --accent: #e94560;
+      --text: #eee;
+      --code-bg: #0f0f23;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: var(--accent); margin-bottom: 0.5rem; }
+    h2 { color: var(--accent); margin: 2rem 0 1rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
+    h3 { margin: 1.5rem 0 0.5rem; }
+    .subtitle { color: #888; margin-bottom: 2rem; }
+    .endpoint {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+    .method {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.875rem;
+      margin-right: 0.5rem;
+    }
+    .get { background: #10b981; color: #000; }
+    .post { background: #3b82f6; color: #fff; }
+    .path { font-family: monospace; font-size: 1.1rem; }
+    code {
+      background: var(--code-bg);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    pre code { padding: 0; background: none; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid #333;
+    }
+    th { color: var(--accent); }
+    .try-it {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--code-bg);
+      border-radius: 8px;
+    }
+    .try-it label {
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
+    }
+    .try-it label:first-child { margin-top: 0; }
+    .try-it input, .try-it select {
+      background: var(--card);
+      border: 1px solid #444;
+      color: var(--text);
+      padding: 0.5rem;
+      border-radius: 4px;
+      width: 100%;
+    }
+    .try-it button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    .try-it button:hover { opacity: 0.9; }
+    .try-it button:disabled { opacity: 0.5; cursor: not-allowed; }
+    audio { width: 100%; margin-top: 1rem; }
+    #result { margin-top: 1rem; }
+    .error { color: #ef4444; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SAPI4 TTS API</h1>
+    <p class="subtitle">Text-to-Speech using Microsoft Speech API 4.0 (Microsoft Sam & friends)</p>
+
+    <h2>Try It</h2>
+    <div class="try-it">
+      <label>Text to speak:</label>
+      <input type="text" id="tts-text" value="Hello! I am Microsoft Sam. Nice to meet you!" />
+
+      <div class="grid">
+        <div>
+          <label>Voice:</label>
+          <select id="tts-voice">
+            <option value="">Default (Sam)</option>
+            <option value="Adult Male #1">Adult Male #1 (Sam)</option>
+            <option value="Adult Male #2">Adult Male #2 (Mike)</option>
+            <option value="Adult Female #1">Adult Female #1 (Mary)</option>
+            <option value="Adult Female #2">Adult Female #2 (Michelle)</option>
+          </select>
+        </div>
+        <div>
+          <label>Or use Agent:</label>
+          <select id="tts-agent">
+            <option value="">None</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Pitch:</label>
+          <input type="number" id="tts-pitch" placeholder="e.g. 150" />
+        </div>
+        <div>
+          <label>Speed:</label>
+          <input type="number" id="tts-speed" placeholder="e.g. 150" />
+        </div>
+      </div>
+
+      <button onclick="synthesize()" id="synth-btn">Synthesize</button>
+
+      <div id="result"></div>
+    </div>
+
+    <h2>Endpoints</h2>
+
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="path">/api/synthesize</span>
+      <p style="margin-top: 1rem;">Generate speech from text. Returns WAV audio data directly.</p>
+
+      <h3>Request Body (JSON)</h3>
+      <table>
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td><code>text</code></td><td>string</td><td>Yes</td><td>Text to synthesize</td></tr>
+        <tr><td><code>voice</code></td><td>string</td><td>No</td><td>Voice name (e.g. "Adult Male #2")</td></tr>
+        <tr><td><code>agent</code></td><td>string</td><td>No</td><td>ACS agent file (e.g. "Bonzi.acs")</td></tr>
+        <tr><td><code>pitch</code></td><td>number</td><td>No</td><td>Voice pitch adjustment</td></tr>
+        <tr><td><code>speed</code></td><td>number</td><td>No</td><td>Voice speed adjustment</td></tr>
+        <tr><td><code>gain</code></td><td>number</td><td>No</td><td>Volume gain multiplier</td></tr>
+      </table>
+
+      <h3>Example</h3>
+      <pre><code>curl -X POST https://tts.ell.dev/api/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello world", "voice": "Adult Male #1"}' \
+  --output hello.wav</code></pre>
+    </div>
+
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/health</span>
+      <p style="margin-top: 1rem;">Health check endpoint.</p>
+      <h3>Response</h3>
+      <pre><code>{"status": "ok"}</code></pre>
+    </div>
+
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/voices</span>
+      <p style="margin-top: 1rem;">List available SAPI4 voices.</p>
+    </div>
+
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/agents</span>
+      <p style="margin-top: 1rem;">List available ACS agent files.</p>
+    </div>
+
+    <h2>JavaScript Example</h2>
+    <pre><code>const response = await fetch('/api/synthesize', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text: 'Hello world', agent: 'Bonzi.acs' })
+});
+
+const audioBlob = await response.blob();
+const audioUrl = URL.createObjectURL(audioBlob);
+const audio = new Audio(audioUrl);
+audio.play();</code></pre>
+  </div>
+
+  <script>
+    // Load agents on page load
+    async function loadAgents() {
+      try {
+        const res = await fetch('/api/agents');
+        const data = await res.json();
+        const select = document.getElementById('tts-agent');
+        if (data.agents) {
+          data.agents.forEach(agent => {
+            const opt = document.createElement('option');
+            opt.value = agent.filename;
+            opt.textContent = agent.name;
+            select.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load agents:', e);
+      }
+    }
+    loadAgents();
+
+    async function synthesize() {
+      const text = document.getElementById('tts-text').value;
+      const voice = document.getElementById('tts-voice').value;
+      const agent = document.getElementById('tts-agent').value;
+      const pitch = document.getElementById('tts-pitch').value;
+      const speed = document.getElementById('tts-speed').value;
+      const result = document.getElementById('result');
+      const btn = document.getElementById('synth-btn');
+
+      if (!text.trim()) {
+        result.innerHTML = '<p class="error">Please enter some text.</p>';
+        return;
+      }
+
+      result.innerHTML = '<p>Generating speech...</p>';
+      btn.disabled = true;
+
+      try {
+        const body = { text };
+        if (agent) body.agent = agent;
+        else if (voice) body.voice = voice;
+        if (pitch) body.pitch = parseInt(pitch);
+        if (speed) body.speed = parseInt(speed);
+
+        const response = await fetch('/api/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          result.innerHTML = '<p class="error">Error: ' + (err.error || 'Unknown error') + '</p>';
+          return;
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        result.innerHTML = '<audio controls autoplay src="' + url + '"></audio>';
+      } catch (err) {
+        result.innerHTML = '<p class="error">Error: ' + err.message + '</p>';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

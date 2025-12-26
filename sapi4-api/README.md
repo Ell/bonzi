@@ -89,3 +89,40 @@ Copy `.acs` files to `files/` and rebuild:
 cp MyAgent.acs files/
 docker compose up -d --build
 ```
+
+## Podman + Quadlet
+
+Create `/etc/containers/systemd/sapi4-api.container`:
+
+```ini
+[Unit]
+Description=SAPI4 TTS API
+
+[Container]
+Image=localhost/sapi4-api
+PublishPort=127.0.0.1:8080:8080
+AutoUpdate=local
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Build
+podman build --network=host -t sapi4-api .
+
+# Start
+systemctl daemon-reload
+systemctl enable --now sapi4-api
+
+# Logs
+journalctl -u sapi4-api -f
+
+# Rebuild and restart
+podman build --network=host -t sapi4-api .
+systemctl restart sapi4-api
+```
