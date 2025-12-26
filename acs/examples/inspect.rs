@@ -1,12 +1,42 @@
 use std::fs;
 use acs::Acs;
 
+fn format_guid(bytes: &[u8; 16]) -> String {
+    // GUID format: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+    format!(
+        "{{{:02X}{:02X}{:02X}{:02X}-{:02X}{:02X}-{:02X}{:02X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}}}",
+        bytes[3], bytes[2], bytes[1], bytes[0],
+        bytes[5], bytes[4],
+        bytes[7], bytes[6],
+        bytes[8], bytes[9],
+        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
+}
+
 fn main() {
     let path = std::env::args().nth(1).expect("Usage: inspect <file.acs>");
     let data = fs::read(&path).expect("read file");
     let mut acs = Acs::new(data).expect("parse");
 
     println!("Character: {}", acs.character_info().name);
+
+    // Print voice info
+    if let Some(ref voice) = acs.character_info().voice_info {
+        println!("\nVoice Info:");
+        println!("  TTS Engine ID: {}", format_guid(&voice.tts_engine_id));
+        println!("  TTS Mode ID: {}", format_guid(&voice.tts_mode_id));
+        println!("  Speed: {}", voice.speed);
+        println!("  Pitch: {}", voice.pitch);
+        if let Some(ref extra) = voice.extra_data {
+            println!("  Language ID: {}", extra.lang_id);
+            println!("  Dialect: {}", extra.lang_dialect);
+            println!("  Gender: {} (0=neutral, 1=female, 2=male)", extra.gender);
+            println!("  Age: {}", extra.age);
+            println!("  Style: {}", extra.style);
+        }
+    } else {
+        println!("\nNo voice info in this ACS file");
+    }
 
     // Show specific animation details
     let filter = std::env::args().nth(2);

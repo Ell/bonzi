@@ -27,3 +27,4 @@ pub use acs::{
     Acs, AcsError, Animation, Branch, CharacterInfo, Frame, FrameImage, Image, Overlay,
     OverlayType, Sound, TransitionType,
 };
+pub use reader::{VoiceExtraData, VoiceInfo};

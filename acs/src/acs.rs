@@ -7,7 +7,7 @@ use std::fmt;
 use crate::compression::{DecompressionError, decompress};
 use crate::reader::{
     AcsHeader, AcsReader, AudioEntry, ImageEntry, RawAnimationInfo, RawCharacterInfo, RawImageInfo,
-    ReaderError,
+    ReaderError, VoiceInfo,
 };
 
 #[derive(Debug)]
@@ -164,6 +164,8 @@ pub struct CharacterInfo {
     /// RGBA palette (256 entries max)
     pub palette: Vec<[u8; 4]>,
     pub guid: [u8; 16],
+    /// Voice TTS settings from the ACS file
+    pub voice_info: Option<VoiceInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +229,7 @@ impl Acs {
             transparent_color: raw_character_info.transparent_color,
             palette,
             guid: raw_character_info.guid,
+            voice_info: raw_character_info.voice_info.clone(),
         };
 
         let raw_animations = reader.read_animation_list(&header.animation_info)?;
